@@ -18,13 +18,13 @@ static void delay_us(uint32_t us) {
 }
 
 void atm90e32_reset(atm90e32_config_t *config) {
-    ESP_LOGI(TAG, "Resetting ATM90E32");
+    ESP_LOGI(TAG, "Resetting ATM90E32, RESET pin (GPIO %d) low", config->reset_pin);
     gpio_set_level(config->reset_pin, 0); // Reset low
-    vTaskDelay(pdMS_TO_TICKS(500));
+    vTaskDelay(pdMS_TO_TICKS(2000)); // 2s low
+    ESP_LOGI(TAG, "RESET pin (GPIO %d) high", config->reset_pin);
     gpio_set_level(config->reset_pin, 1); // Reset high
-    vTaskDelay(pdMS_TO_TICKS(500));
+    vTaskDelay(pdMS_TO_TICKS(2000)); // 2s high
 }
-
 void atm90e32_init(atm90e32_config_t *config) {
     // Configure CS and Reset pins
     gpio_config_t io_conf = {
@@ -139,7 +139,7 @@ uint16_t atm90e32_comm_energy_ic(atm90e32_config_t *config, uint8_t rw, uint16_t
     uint8_t rx_data[4] = {0};
     uint16_t output;
 
-    // Prepare address and value (ATM90E32 expects MSB first)
+    // Prepare address and value
     address |= rw << 15; // Set R/W flag (MSB)
     tx_data[0] = address >> 8; // Address MSB
     tx_data[1] = address & 0xFF; // Address LSB
@@ -158,15 +158,15 @@ uint16_t atm90e32_comm_energy_ic(atm90e32_config_t *config, uint8_t rw, uint16_t
     // Perform SPI transaction
     ESP_LOGI(TAG, "CS (GPIO %d) set low", config->cs_pin);
     gpio_set_level(config->cs_pin, 0); // CS low
-    delay_us(10); // 10us delay
+    delay_us(200); // Increased delay
     ret = spi_device_polling_transmit(config->spi, &trans);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "SPI transaction failed: %s", esp_err_to_name(ret));
     }
-    delay_us(10); // Increased delay for stability
+    delay_us(200); // Increased delay
     ESP_LOGI(TAG, "CS (GPIO %d) set high", config->cs_pin);
     gpio_set_level(config->cs_pin, 1); // CS high
-    delay_us(10); // 10us delay
+    delay_us(200); // Increased delay
 
     if (rw == READ) {
         output = (rx_data[2] << 8) | rx_data[3];
@@ -480,5 +480,6 @@ uint16_t atm90e32_get_meter_status0(atm90e32_config_t *config) {
 uint16_t atm90e32_get_meter_status1(atm90e32_config_t *config) {
     return atm90e32_comm_energy_ic(config, READ, EMMState1, 0xFFFF);
 }
+
 
 
