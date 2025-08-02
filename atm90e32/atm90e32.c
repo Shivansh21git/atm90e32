@@ -1,3 +1,4 @@
+
 #include "atm90e32.h"
 #include <esp_log.h>
 #include <esp_err.h>
@@ -5,9 +6,16 @@
 #include <freertos/task.h>
 #include <string.h>
 #include <math.h>
-#include <esp_rom/ets_sys.h> // Added for esp_rom_delay_us
+#include <esp_timer.h>
 
 static const char *TAG = "ATM90E32";
+
+static void delay_us(uint32_t us) {
+    uint64_t start = esp_timer_get_time();
+    while (esp_timer_get_time() - start < us) {
+        // Busy wait
+    }
+}
 
 void atm90e32_reset(atm90e32_config_t *config) {
     ESP_LOGI(TAG, "Resetting ATM90E32");
@@ -149,14 +157,14 @@ uint16_t atm90e32_comm_energy_ic(atm90e32_config_t *config, uint8_t rw, uint16_t
 
     // Perform SPI transaction
     gpio_set_level(config->cs_pin, 0); // CS low
-    esp_rom_delay_us(10); // 10us delay
+    delay_us(10); // 10us delay
     ret = spi_device_polling_transmit(config->spi, &trans);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "SPI transaction failed: %s", esp_err_to_name(ret));
     }
-    esp_rom_delay_us(4); // 4us delay for data validity
+    delay_us(4); // 4us delay for data validity
     gpio_set_level(config->cs_pin, 1); // CS high
-    esp_rom_delay_us(10); // 10us delay
+    delay_us(10); // 10us delay
 
     if (rw == READ) {
         output = (rx_data[2] << 8) | rx_data[3];
