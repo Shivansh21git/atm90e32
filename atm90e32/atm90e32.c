@@ -135,27 +135,28 @@ void atm90e32_init(atm90e32_config_t *config) {
 uint16_t atm90e32_comm_energy_ic(atm90e32_config_t *config, uint8_t rw, uint16_t address, uint16_t val) {
     esp_err_t ret;
     spi_transaction_t trans = {0};
-    uint8_t tx_data[4];
-    uint8_t rx_data[4];
+    uint8_t tx_data[4] = {0};
+    uint8_t rx_data[4] = {0};
     uint16_t output;
 
-    // Swap MSB and LSB of address and value
-    address = (address >> 8) | (address << 8);
-    address |= rw << 15; // Set R/W flag
-    val = (val >> 8) | (val << 8);
-
-    // Prepare transaction
-    tx_data[0] = address >> 8;
-    tx_data[1] = address & 0xFF;
-    tx_data[2] = val >> 8;
-    tx_data[3] = val & 0xFF;
+    // Prepare address and value
+    address |= rw << 15; // Set R/W flag (MSB)
+    tx_data[0] = address >> 8; // Address MSB
+    tx_data[1] = address & 0xFF; // Address LSB
+    tx_data[2] = val >> 8; // Value MSB
+    tx_data[3] = val & 0xFF; // Value LSB
 
     trans.tx_buffer = tx_data;
     trans.rx_buffer = rx_data;
     trans.length = 4 * 8; // 4 bytes
     trans.rxlength = (rw == READ) ? 4 * 8 : 0;
 
+    // Log SPI transaction
+    ESP_LOGI(TAG, "SPI TX [Addr: 0x%04x, RW: %d]: %02x %02x %02x %02x", 
+             (address & 0x7FFF), rw, tx_data[0], tx_data[1], tx_data[2], tx_data[3]);
+
     // Perform SPI transaction
+    ESP_LOGI(TAG, "CS (GPIO %d) set low", config->cs_pin);
     gpio_set_level(config->cs_pin, 0); // CS low
     delay_us(10); // 10us delay
     ret = spi_device_polling_transmit(config->spi, &trans);
@@ -163,12 +164,14 @@ uint16_t atm90e32_comm_energy_ic(atm90e32_config_t *config, uint8_t rw, uint16_t
         ESP_LOGE(TAG, "SPI transaction failed: %s", esp_err_to_name(ret));
     }
     delay_us(4); // 4us delay for data validity
+    ESP_LOGI(TAG, "CS (GPIO %d) set high", config->cs_pin);
     gpio_set_level(config->cs_pin, 1); // CS high
     delay_us(10); // 10us delay
 
     if (rw == READ) {
         output = (rx_data[2] << 8) | rx_data[3];
-        output = (output >> 8) | (output << 8); // Reverse MSB and LSB
+        ESP_LOGI(TAG, "SPI RX: %02x %02x %02x %02x, Output: 0x%04x", 
+                 rx_data[0], rx_data[1], rx_data[2], rx_data[3], output);
         return output;
     }
     return val;
@@ -477,3 +480,4 @@ uint16_t atm90e32_get_meter_status0(atm90e32_config_t *config) {
 uint16_t atm90e32_get_meter_status1(atm90e32_config_t *config) {
     return atm90e32_comm_energy_ic(config, READ, EMMState1, 0xFFFF);
 }
+
