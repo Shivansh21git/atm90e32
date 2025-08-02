@@ -139,7 +139,7 @@ uint16_t atm90e32_comm_energy_ic(atm90e32_config_t *config, uint8_t rw, uint16_t
     uint8_t rx_data[4] = {0};
     uint16_t output;
 
-    // Prepare address and value
+    // Prepare address and value (ATM90E32 expects MSB first)
     address |= rw << 15; // Set R/W flag (MSB)
     tx_data[0] = address >> 8; // Address MSB
     tx_data[1] = address & 0xFF; // Address LSB
@@ -149,7 +149,7 @@ uint16_t atm90e32_comm_energy_ic(atm90e32_config_t *config, uint8_t rw, uint16_t
     trans.tx_buffer = tx_data;
     trans.rx_buffer = rx_data;
     trans.length = 4 * 8; // 4 bytes
-    trans.rxlength = (rw == READ) ? 4 * 8 : 0;
+    trans.rxlength = 4 * 8; // Always receive 4 bytes
 
     // Log SPI transaction
     ESP_LOGI(TAG, "SPI TX [Addr: 0x%04x, RW: %d]: %02x %02x %02x %02x", 
@@ -163,7 +163,7 @@ uint16_t atm90e32_comm_energy_ic(atm90e32_config_t *config, uint8_t rw, uint16_t
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "SPI transaction failed: %s", esp_err_to_name(ret));
     }
-    delay_us(4); // 4us delay for data validity
+    delay_us(10); // Increased delay for stability
     ESP_LOGI(TAG, "CS (GPIO %d) set high", config->cs_pin);
     gpio_set_level(config->cs_pin, 1); // CS high
     delay_us(10); // 10us delay
@@ -480,4 +480,5 @@ uint16_t atm90e32_get_meter_status0(atm90e32_config_t *config) {
 uint16_t atm90e32_get_meter_status1(atm90e32_config_t *config) {
     return atm90e32_comm_energy_ic(config, READ, EMMState1, 0xFFFF);
 }
+
 
